@@ -87,6 +87,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Magic values are idiomatic in test assertions.
 "tests/**/*.py" = ["PLR2004"]
+# Kalman filter uses Q/R/F/H/P/K/S — standard math notation in the literature.
+"features/microstructure.py" = ["N806"]
 
 [tool.black]
 line-length = 100
@@ -103,3 +105,6 @@ minversion = "8.0"
 addopts = "-ra --strict-markers --strict-config"
 testpaths = ["tests"]
 filterwarnings = ["error"]
+markers = [
+    "slow: heavy tests (e.g. causality leak check) — run with `pytest -m slow`",
+]
