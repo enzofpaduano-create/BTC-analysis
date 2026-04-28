@@ -4,7 +4,7 @@
 asset:
   symbol: BTCUSDT
   category: linear            # Bybit perpétuel USDT (option : "spot", "inverse")
-  timeframes: [1, 5, 15, 60]  # minutes — toutes ingérées en parallèle
+  timeframes: ["1", "5", "15", "60"]  # codes Bybit (strings) : "1"=M1, "60"=H1, "D"=daily, etc.
 
 # Coûts utilisés par le backtest (Étape 4)
 costs:

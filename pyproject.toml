@@ -78,7 +78,15 @@ select = [
     "RET",           # return
     "PL",            # pylint subset
 ]
-ignore = ["PLR0913"]  # allow many keyword args in signatures
+ignore = [
+    "PLR0913",  # many keyword args in signatures — pandas-style is fine
+    "PLR0915",  # many statements — orchestration code legitimately does a lot
+    "PLR0912",  # many branches — same rationale
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Magic values are idiomatic in test assertions.
+"tests/**/*.py" = ["PLR2004"]
 
 [tool.black]
 line-length = 100
