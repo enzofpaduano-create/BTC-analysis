@@ -1,0 +1,20 @@
+# Exemple de configuration d'actif (sera chargé/validé par pydantic à l'étape 2).
+# Copier vers `btcusdt.yaml` et adapter.
+
+asset:
+  symbol: BTCUSDT
+  category: linear            # Bybit perpétuel USDT (option : "spot", "inverse")
+  timeframes: [1, 5, 15, 60]  # minutes — toutes ingérées en parallèle
+
+# Coûts utilisés par le backtest (Étape 4)
+costs:
+  taker_fee_bps: 5.5            # frais taker Bybit perp, en bps (0.055 %)
+  maker_fee_bps: 1.0
+  slippage_bps_fixed: 1.0
+  slippage_bps_proportional: 0.5
+  funding_8h_bps_avg: 1.0       # estimation moyenne des frais de funding 8h
+
+# Stockage
+storage:
+  parquet_root: ./data_store/parquet
+  duckdb_path: ./data_store/db/btc.duckdb

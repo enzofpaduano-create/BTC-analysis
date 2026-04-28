@@ -1,0 +1,42 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.Python
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- venv / uv ---
+.venv/
+# `.python-version` and `uv.lock` ARE committed for reproducibility.
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+
+# --- macOS ---
+.DS_Store
+._*
+
+# --- Project ---
+.env
+data_store/
+*.parquet
+*.duckdb
+*.duckdb.wal
+notebooks/.ipynb_checkpoints/
+notebooks/scratch_*
+
+# --- Logs ---
+logs/
+*.log
