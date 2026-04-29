@@ -23,6 +23,7 @@ from backtest.metrics import (
     sortino_ratio,
     trade_metrics,
 )
+from backtest.optimization import grid_search, walk_forward_optimize
 from backtest.plotting import plot_equity_and_drawdown, save_html_report
 from backtest.strategy import SignalFrame, Strategy
 from backtest.walk_forward import WalkForwardSplit, walk_forward_splits
@@ -40,6 +41,7 @@ __all__ = [
     "calmar_ratio",
     "compute_metrics",
     "equity_curve",
+    "grid_search",
     "max_drawdown",
     "plot_equity_and_drawdown",
     "run_backtest",
@@ -47,5 +49,6 @@ __all__ = [
     "sharpe_ratio",
     "sortino_ratio",
     "trade_metrics",
+    "walk_forward_optimize",
     "walk_forward_splits",
 ]

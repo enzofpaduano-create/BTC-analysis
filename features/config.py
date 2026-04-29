@@ -23,6 +23,9 @@ class TechnicalConfig(BaseModel):
     atr_length: int = 14
     ema_lengths: list[int] = Field(default_factory=lambda: [9, 21, 50, 200])
     slope_window: int = 5  # bars used to compute the EMA slope
+    # Donchian channel + ADX (used by trend-following strategies)
+    donchian_period: int = 20
+    adx_length: int = 14
 
 
 class VolatilityConfig(BaseModel):

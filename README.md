@@ -126,7 +126,17 @@ btc-quant/
 - [x] **Étape 2 — Data** : connecteur Bybit (REST polling), download historique résilient, Parquet partitionné, DuckDB, qualité auto (outliers/gaps/zero-vol).
 - [x] **Étape 3 — Features** : RSI/MACD/BB/ATR/EMAs, vol multi-fenêtres, GARCH(1,1) walk-forward, HMM 3-états (sortés bear/range/bull), ruptures PELT, Kalman local-linear-trend. **Test de causalité strict passé.**
 - [x] **Étape 4 — Backtest** : harness custom numpy (vectorbt en backup), spread/slippage/funding réalistes, walk-forward + purge/embargo, métriques complètes (Sharpe/Sortino/Calmar/MDD/PF/expectancy), rapport HTML plotly. **Test no-look-ahead strict passé.**
-- [x] **Étape 5 — Stratégie baseline** : mean-reversion Bollinger filtré HMM, sortie via mid-band / ATR×2 stop / timeout 4h, vol targeting (1% per trade), backtest sur 2 ans BTCUSDT M5.
-- [ ] **Étape 6 — Live alertes** : boucle de polling, scoring, alertes console + log (pas d'exécution).
+- [x] **Étape 5 — Stratégie baseline** : mean-reversion Bollinger filtré HMM + framework grid-search/walk-forward + 2ème stratégie trend-following Donchian + ADX + HMM bull. Tous tests no-leak passés.
+- [x] **Étape 6 — Live alertes** : `AlertsRunner` (polling Bybit → features → score composite multi-strat → console + JSONL). Aucune exécution.
 
 Aucune exécution automatique tant que plusieurs mois de stats live ne sont pas cohérents avec le backtest.
+
+---
+
+## Scripts disponibles
+
+| Commande | Effet |
+|---|---|
+| `uv run python -m scripts.smoke_e2e` | Smoke test data layer (1 jour de BTCUSDT M1 mainnet) |
+| `DAYS_BACK=180 uv run python -m scripts.run_baseline_backtest` | Backtest baseline mean-reversion sur N jours BTCUSDT M5 + rapport HTML |
+| `uv run python -m scripts.run_alerts` | Boucle live alertes (polling + scoring composite, **aucune exécution**) |

@@ -74,6 +74,15 @@ def compute_technical(df: pd.DataFrame, cfg: TechnicalConfig) -> pd.DataFrame:
         # Causal slope: pct change over the last `slope_window` bars.
         out[f"{col}_slope"] = out[col].pct_change(periods=cfg.slope_window)
 
+    # -- Donchian channel (shifted by 1 bar so we never look at the current bar)
+    out["donchian_high"] = high.rolling(cfg.donchian_period).max().shift(1)
+    out["donchian_low"] = low.rolling(cfg.donchian_period).min().shift(1)
+
+    # -- ADX (Average Directional Index) — trend-strength filter -----------
+    adx_df = ta.adx(high, low, close, length=cfg.adx_length)
+    if adx_df is not None and not adx_df.empty:
+        out["adx"] = adx_df[f"ADX_{cfg.adx_length}"]
+
     return out
 
 
