@@ -44,6 +44,16 @@ class Settings(BaseSettings):
         description="Root directory for Parquet partitions and DuckDB database.",
     )
 
+    # -- Telegram (optional) ----------------------------------------------
+    # If both `bot_token` and `chat_id` are set, the alerts runner posts
+    # actionable scores to Telegram. Otherwise this sink is silently skipped.
+    telegram_bot_token: str = Field(default="", description="BotFather token.")
+    telegram_chat_id: str = Field(default="", description="Target chat id.")
+    telegram_min_score_abs: float = Field(
+        default=0.3,
+        description="Only post alerts when |composite_score| ≥ this.",
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -140,3 +140,13 @@ Aucune exécution automatique tant que plusieurs mois de stats live ne sont pas 
 | `uv run python -m scripts.smoke_e2e` | Smoke test data layer (1 jour de BTCUSDT M1 mainnet) |
 | `DAYS_BACK=180 uv run python -m scripts.run_baseline_backtest` | Backtest baseline mean-reversion sur N jours BTCUSDT M5 + rapport HTML |
 | `uv run python -m scripts.run_alerts` | Boucle live alertes (polling + scoring composite, **aucune exécution**) |
+| `bash scripts/deploy/install_macos.sh` | Installer le runner en service launchd 24/7 sur macOS — voir [DEPLOY.md](DEPLOY.md) |
+| `bash scripts/deploy/uninstall_macos.sh` | Désinstaller le service launchd |
+
+## Notifications Telegram
+
+Le runner peut poster les alertes sur un bot Telegram quand `|score| ≥ seuil`. Setup en 5 min : voir [DEPLOY.md §1](DEPLOY.md). En résumé :
+1. Crée un bot via @BotFather → token
+2. Récupère ton `chat_id` via `getUpdates`
+3. Renseigne `TELEGRAM_BOT_TOKEN` et `TELEGRAM_CHAT_ID` dans `.env`
+4. Le sink est activé automatiquement au prochain run

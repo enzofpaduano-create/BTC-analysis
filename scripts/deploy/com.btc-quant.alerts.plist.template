@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd configuration for the btc-quant alerts runner.
+
+  This file is a TEMPLATE — placeholders ${HOME} and ${PROJECT_DIR}
+  are substituted by scripts/deploy/install_macos.sh at install time.
+
+  Behaviour once loaded:
+    - Starts the alerts runner at user login.
+    - Restarts it on crash (KeepAlive).
+    - Wraps the command in `caffeinate -i` so the Mac never sleeps while
+      the loop is active (display can still sleep — only system sleep
+      is blocked).
+    - Pipes stdout / stderr to logs/ inside the project root.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.btc-quant.alerts</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-i</string>
+    <string>${HOME}/.local/bin/uv</string>
+    <string>run</string>
+    <string>--no-sync</string>
+    <string>python</string>
+    <string>-m</string>
+    <string>scripts.run_alerts</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>${PROJECT_DIR}</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>${PROJECT_DIR}/logs/alerts.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>${PROJECT_DIR}/logs/alerts.err.log</string>
+</dict>
+</plist>
