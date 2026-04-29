@@ -56,8 +56,8 @@ def main() -> None:
 
     # Two complementary strategies: mean-reversion and trend-following.
     strategies = [
-        (MeanReversionBollingerHMM(target_vol_per_trade=0.01), 1.0),
-        (TrendBreakoutADXHMM(target_vol_per_trade=0.01), 1.0),
+        (MeanReversionBollingerHMM(target_vol_per_trade=1.0), 1.0),
+        (TrendBreakoutADXHMM(target_vol_per_trade=1.0), 1.0),
     ]
 
     sinks = [default_console_sink]
