@@ -48,21 +48,35 @@ class TelegramConfig:
 
 
 def format_alert_html(score: CompositeScore) -> str:
-    """Render a CompositeScore as a Telegram-friendly HTML message."""
+    """Render a CompositeScore as a Telegram-friendly HTML message.
+
+    Layout (mobile-friendly)::
+
+        🟢 BUY BTCUSDT — 7/10
+        score +0.72 • regime bull (0.82)
+        2026-04-29 14:30 UTC
+        ━━━━━━━━━━━━━━━━━━━━
+        • mean_reversion_bb_hmm: +1 @ 0.30
+        • trend_breakout_adx_hmm: +1 @ 0.35
+    """
     direction = score.direction()
     emoji = {1: "🟢", -1: "🔴", 0: "⚪"}[direction]
+    action = score.action()  # BUY / SELL / WAIT
+    rating = score.rating()  # 1..10
+    symbol = score.symbol or "—"
+    regime_name = {0: "bear", 1: "range", 2: "bull"}.get(score.regime_label, "?")
+
     components = "\n".join(
-        f"  • <code>{c.strategy_name}</code>: {c.direction:+d} @ {c.size:.2f}"
+        f"• <code>{c.strategy_name}</code>: {c.direction:+d} @ {c.size:.2f}"
         for c in score.components
     )
-    regime_name = {0: "bear", 1: "range", 2: "bull"}.get(score.regime_label, "?")
     return (
-        f"{emoji} <b>{score.label()}</b>\n"
-        f"score <b>{score.score:+.2f}</b>\n"
-        f"<i>{score.timestamp:%Y-%m-%d %H:%M}</i> UTC\n"
-        f"regime: <code>{regime_name}</code> "
+        f"{emoji} <b>{action} {symbol}</b> — <b>{rating}/10</b>\n"
+        f"score <b>{score.score:+.2f}</b> • regime <code>{regime_name}</code> "
         f"(p={score.regime_proba:.2f})\n"
-        f"<i>strategies</i>:\n{components}"
+        f"<i>{score.timestamp:%Y-%m-%d %H:%M}</i> UTC\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"{components}"
     )
 
 

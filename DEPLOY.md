@@ -122,48 +122,134 @@ système, mais cette option est une ceinture-bretelles.
 
 ## 3. Alternative : VPS cloud (vrai 24/7)
 
-Si tu veux que ça tourne même quand ton Mac est éteint, options :
+État réel des hébergeurs en 2025-2026 :
 
-| Service | Prix | Notes |
-|---|---|---|
-| **Hetzner** CX11 | ~4 €/mois | VPS Linux 2 vCPU, le moins cher fiable |
-| **Contabo** VPS S | ~5 €/mois | Plus de RAM, parfois moins stable |
-| **Fly.io** | gratuit (3 micro VMs) | Déploiement Docker, scale automatique |
-| **Render** | gratuit (avec sleep) | Sleep après 15 min sans trafic — pas top pour nous |
-| **Oracle Cloud Free** | gratuit | 2 ARM VMs, à condition d'avoir un compte vérifié |
+| Service | Réellement gratuit 24/7 ? | Effort | Notes |
+|---|---|---|---|
+| **Oracle Cloud Free Tier** | ✅ vraiment gratuit "à vie" | 30-45 min | 4 vCPU ARM + 24 Go RAM. Best free option |
+| **GCP Always Free** | ⚠️ 1 e2-micro USA only | 30 min | RAM limitée, latence US vers Bybit |
+| **Fly.io** | ❌ plus de free tier depuis fin 2024 | — | $5/mois min (~$2 pour notre charge) |
+| **Render free** | ❌ sleep après 15 min | — | Inutile pour polling continu |
+| **Hetzner CX22 ARM** | ❌ 3,79 €/mois | 15 min | Le moins cher avec setup le plus simple |
+| **Contabo VPS S** | ❌ ~5 €/mois | 15 min | Plus de RAM, parfois moins stable |
 
-Pour Hetzner / Contabo (le plus simple) :
-1. Crée un VPS Ubuntu 24.04
-2. SSH dedans, installe `git`, `uv`, clone le repo
-3. Crée le `.env` (copie + colle le `.env.example`, remplis Telegram)
-4. Au lieu de `launchd`, utilise **`systemd`** :
+### Choix recommandé selon ton profil
 
-```ini
-# /etc/systemd/system/btc-alerts.service
+- **Tu veux tester sans dépenser un centime** → Oracle Cloud Free (§3.1)
+- **Tu acceptes ~4 €/mois pour ne pas perdre 30 min de setup** → Hetzner (§3.2)
+
+### 3.1 Oracle Cloud Free Tier (gratuit à vie)
+
+#### A. Créer le compte et la VM
+
+1. Aller sur [cloud.oracle.com](https://cloud.oracle.com), créer un compte gratuit. Carte bancaire requise pour la vérification (jamais débitée tant que tu restes sur les ressources free).
+2. Choisir une **région proche de l'Europe** (Frankfurt, Amsterdam ou Paris) — meilleure latence vers Bybit + conformité.
+3. Console → **Compute → Instances → Create Instance**.
+4. Configuration :
+   - **Image** : Canonical Ubuntu 24.04 (Always Free Eligible)
+   - **Shape** : `VM.Standard.A1.Flex` (ARM, Always Free)
+   - **OCPUs** : 1 ; **Memory** : 6 GB (large pour notre charge)
+   - **SSH key** : colle ton `~/.ssh/id_ed25519.pub`. Si tu n'as pas de clé :
+     ```bash
+     ssh-keygen -t ed25519 -C "btc-quant-vps"
+     cat ~/.ssh/id_ed25519.pub
+     ```
+   - **Public IP** : assigned ✅
+5. Attendre ~2 min. Note l'IP publique de la VM dans les détails de l'instance.
+6. Ouvrir le port 22 (SSH) si le wizard ne l'a pas fait : Networking → Default Security List → Add Ingress Rule, port 22, source 0.0.0.0/0.
+
+#### B. Setup sur la VM
+
+```bash
+ssh ubuntu@<IP_PUBLIQUE>
+
+# Système à jour + outils de base
+sudo apt-get update && sudo apt-get install -y git curl
+
+# Installer uv (l'install script de la doc Astral)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+
+# Cloner le repo (depuis ton GitHub privé)
+git clone https://github.com/enzofpaduano-create/BTC-analysis.git btc-quant
+cd btc-quant
+
+# Configurer .env avec ton token Telegram
+cp .env.example .env
+nano .env   # remplis TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+
+# Installer les dépendances une fois (uv prend ~3 min en première install)
+uv sync --extra data --extra features --extra backtest
+```
+
+#### C. Service systemd (équivalent launchd Mac)
+
+```bash
+sudo tee /etc/systemd/system/btc-alerts.service > /dev/null <<EOF
 [Unit]
 Description=btc-quant alerts runner
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=enzo
-WorkingDirectory=/home/enzo/btc-quant
-ExecStart=/home/enzo/.local/bin/uv run --no-sync python -m scripts.run_alerts
+User=ubuntu
+WorkingDirectory=/home/ubuntu/btc-quant
+ExecStart=/home/ubuntu/.local/bin/uv run --no-sync python -m scripts.run_alerts
 Restart=always
 RestartSec=30
+StandardOutput=append:/home/ubuntu/btc-quant/logs/alerts.out.log
+StandardError=append:/home/ubuntu/btc-quant/logs/alerts.err.log
 
 [Install]
 WantedBy=multi-user.target
-```
+EOF
 
-```bash
+mkdir -p ~/btc-quant/logs
 sudo systemctl daemon-reload
 sudo systemctl enable --now btc-alerts
-sudo systemctl status btc-alerts
-journalctl -u btc-alerts -f   # logs en direct
+sudo systemctl status btc-alerts          # doit dire "active (running)"
+sudo journalctl -u btc-alerts -f          # logs en direct
 ```
 
-C'est l'équivalent direct du setup launchd, sur Linux.
+#### D. Mettre à jour quand tu push du nouveau code
+
+```bash
+ssh ubuntu@<IP>
+cd btc-quant
+git pull
+uv sync --extra data --extra features --extra backtest   # si deps changent
+sudo systemctl restart btc-alerts
+```
+
+### 3.2 Hetzner CX22 ARM (3,79 €/mois)
+
+Pareil mais plus simple côté création de VM :
+
+1. [hetzner.com/cloud](https://hetzner.com/cloud), créer un compte (CB).
+2. Add Server → Location: Falkenstein/Helsinki/Nuremberg → Image: Ubuntu 24.04 → Type: **CX22** (ARM, 3,79 €/mois) → SSH key → Create.
+3. Note l'IP publique.
+4. **Le reste est identique au §3.1 B-D**.
+
+### 3.3 Via Docker (option moderne, n'importe quel cloud)
+
+Le projet inclut un `Dockerfile`. Pour déployer où tu veux :
+
+```bash
+# Local / serveur :
+docker build -t btc-quant-alerts .
+docker volume create btc_data
+docker run -d --restart unless-stopped \
+  --name btc-alerts \
+  --env-file .env \
+  -v btc_data:/app/data_store \
+  -v $(pwd)/logs:/app/logs \
+  btc-quant-alerts
+
+docker logs -f btc-alerts
+```
+
+Compatible avec Fly.io, Railway, Coolify, Dokku, n'importe quel hôte qui parle Docker.
 
 ---
 
@@ -171,20 +257,23 @@ C'est l'équivalent direct du setup launchd, sur Linux.
 
 Format Telegram (HTML) :
 ```
-🟢 LONG
-score +0.65
+🟢 BUY BTCUSDT — 7/10
+score +0.72 • regime bull (p=0.82)
 2026-04-29 14:30 UTC
-regime: bull (p=0.82)
-strategies:
-  • mean_reversion_bb_hmm: +1 @ 0.30
-  • trend_breakout_adx_hmm: +1 @ 0.35
+━━━━━━━━━━━━━━━━━━━━
+• mean_reversion_bb_hmm: +1 @ 0.30
+• trend_breakout_adx_hmm: +1 @ 0.35
 ```
 
 Décodage :
-- 🟢 = LONG (🔴 = SHORT, ⚪ = FLAT)
-- `score +0.65` : entre -1 et +1, magnitude = conviction
+- 🟢 **BUY** = direction long (🔴 SELL = short, ⚪ WAIT = pas de signal)
+- **7/10** = note de conviction (calculée depuis `|score| × 10`, plancher 1, plafond 10) :
+  - 3-4/10 = signal limite, à scruter
+  - 5-7/10 = setup propre
+  - 8-10/10 = forte conviction, les deux stratégies alignées à pleine taille
+- `score +0.72` : composite signé entre -1 et +1
 - `regime: bull (p=0.82)` : régime HMM courant + probabilité
-- `strategies` : direction (+1/-1) et taille vol-targeted de chaque strat
+- Lignes du dessous : direction et taille vol-targeted de chaque stratégie
 
 ⚠️ **AUCUNE de ces alertes n'est un ordre exécuté**. Tu décides à la
 main d'agir ou non. C'est le contrat du système (cf. brief initial).

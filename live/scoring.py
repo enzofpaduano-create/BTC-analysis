@@ -44,6 +44,7 @@ class CompositeScore:
     components: list[StrategyScore]
     regime_label: int
     regime_proba: float
+    symbol: str = ""
 
     def direction(self) -> int:
         if self.score > DIRECTION_THRESHOLD:
@@ -55,11 +56,27 @@ class CompositeScore:
     def label(self) -> str:
         return {1: "LONG", -1: "SHORT", 0: "FLAT"}[self.direction()]
 
+    def action(self) -> str:
+        """Imperative action word — what the human should consider doing."""
+        return {1: "BUY", -1: "SELL", 0: "WAIT"}[self.direction()]
+
+    def rating(self) -> int:
+        """Conviction rating in [1, 10] — magnitude of the composite score.
+
+        ``|score| 0.3`` → 3/10 (just past the alert threshold).
+        ``|score| 1.0`` → 10/10 (every strategy at full size).
+
+        Always at least 1 so the rating is meaningful in messages even at
+        the threshold edge.
+        """
+        return max(1, min(10, round(abs(self.score) * 10)))
+
 
 def score_latest_bar(
     *,
     features: pd.DataFrame,
     strategies: list[tuple[Strategy, float]],
+    symbol: str = "",
 ) -> CompositeScore:
     """Compute the composite score for the last bar of ``features``.
 
@@ -68,6 +85,8 @@ def score_latest_bar(
             ``regime_hmm`` and ``regime_hmm_proba``.
         strategies: List of ``(strategy, weight)`` tuples. Weights are
             normalised so they sum to 1.
+        symbol: Asset symbol to embed in the resulting score (purely
+            informational — used by sinks for their messages).
 
     Returns:
         ``CompositeScore`` summarising direction + intensity.
@@ -114,4 +133,5 @@ def score_latest_bar(
         components=components,
         regime_label=regime_label,
         regime_proba=regime_proba,
+        symbol=symbol,
     )

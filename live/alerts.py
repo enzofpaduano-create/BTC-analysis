@@ -53,10 +53,11 @@ class AlertConfig:
 def default_console_sink(score: CompositeScore) -> None:
     """Print a compact one-liner to the console."""
     parts = " ".join(f"{c.strategy_name}:{c.direction:+d}@{c.size:.2f}" for c in score.components)
+    symbol_str = f"{score.symbol} " if score.symbol else ""
     msg = (
-        f"[{score.timestamp:%Y-%m-%d %H:%M}] {score.label()} "
-        f"score={score.score:+.2f} regime={score.regime_label} "
-        f"({score.regime_proba:.2f}) | {parts}"
+        f"[{score.timestamp:%Y-%m-%d %H:%M}] {symbol_str}{score.action()} "
+        f"{score.rating()}/10 score={score.score:+.2f} "
+        f"regime={score.regime_label}({score.regime_proba:.2f}) | {parts}"
     )
     if abs(score.score) >= DEFAULT_ALERT_THRESHOLD:
         logger.warning(msg)
@@ -155,7 +156,7 @@ class AlertsRunner:
             return
 
         feat = compute_features(self._buffer, self.features_cfg)
-        score = score_latest_bar(features=feat, strategies=self.strategies)
+        score = score_latest_bar(features=feat, strategies=self.strategies, symbol=self.cfg.symbol)
         for sink in self.sinks:
             try:
                 sink(score)

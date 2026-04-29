@@ -1,0 +1,27 @@
+# Don't ship caches, secrets, or local artefacts into the image.
+.venv/
+.git/
+.github/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+.coverage*
+htmlcov/
+
+# Local-only files
+.env
+.DS_Store
+data_store/
+reports/
+logs/
+
+# Tests + notebooks not needed in a runtime image.
+tests/
+notebooks/
+
+# IDE / editor noise.
+.idea/
+.vscode/
+*.swp

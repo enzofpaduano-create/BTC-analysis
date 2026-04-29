@@ -98,6 +98,30 @@ def test_score_includes_regime_metadata() -> None:
     assert score.regime_proba == 0.8
 
 
+def test_score_carries_symbol() -> None:
+    feat = _features()
+    score = score_latest_bar(features=feat, strategies=[(_AlwaysLong(), 1.0)], symbol="BTCUSDT")
+    assert score.symbol == "BTCUSDT"
+
+
+def test_action_word_long_short_wait() -> None:
+    feat = _features()
+    long_score = score_latest_bar(features=feat, strategies=[(_AlwaysLong(), 1.0)])
+    short_score = score_latest_bar(features=feat, strategies=[(_AlwaysShort(), 1.0)])
+    assert long_score.action() == "BUY"
+    assert short_score.action() == "SELL"
+    # Cancelling each other → flat → WAIT.
+    flat = score_latest_bar(features=feat, strategies=[(_AlwaysLong(), 1.0), (_AlwaysShort(), 1.0)])
+    assert flat.action() == "WAIT"
+
+
+def test_rating_scales_with_magnitude() -> None:
+    feat = _features()
+    score = score_latest_bar(features=feat, strategies=[(_AlwaysLong(), 1.0)])
+    # Always-long fires +1 with size 0.5 → score 0.5 → rating 5/10.
+    assert score.rating() == 5
+
+
 def test_threshold_for_flat_label() -> None:
     """Tiny scores stay FLAT (avoid false alerts)."""
     feat = _features()
