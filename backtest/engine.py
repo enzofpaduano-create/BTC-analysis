@@ -86,11 +86,9 @@ def run_backtest(
 
     # Per-bar tracking arrays.
     position_size = np.zeros(n)  # signed BTC held at END of bar i
-    notional = np.zeros(n)  # signed quote-currency exposure at END of bar i
     cash = np.full(n, cfg.initial_capital)
     fees = np.zeros(n)
     funding_cost = np.zeros(n)
-    pnl = np.zeros(n)  # mark-to-market change of position value at bar i
 
     open_long = np.asarray(sigs["entry_long"].fillna(False).to_numpy(), dtype=bool)
     close_long = np.asarray(sigs["exit_long"].fillna(False).to_numpy(), dtype=bool)
@@ -105,19 +103,16 @@ def run_backtest(
     funding_per_bar = (cfg.costs.funding_annual_bps * 1e-4) / bars_per_year
 
     for i in range(n):
-        # Mark-to-market the carried position to the close of bar i.
+        # Carry the position forward. Unrealised PnL is captured automatically
+        # via `equity = cash + position_size * close`, so cash MUST NOT be
+        # bumped by mark-to-market — that would double-count price moves.
         prev_pos = position_size[i - 1] if i > 0 else 0.0
-        prev_close = close[i - 1] if i > 0 else close[i]
         cur_close = close[i]
-        mtm_pnl = prev_pos * (cur_close - prev_close)
-        pnl[i] = mtm_pnl
 
-        # Funding on the position carried over the bar (paid by long *and*
-        # short symmetrically — simplifying assumption).
+        # Funding on the position held over the bar (long & short symmetric).
         funding_cost[i] = abs(prev_pos) * cur_close * funding_per_bar
-        # Carry forward.
         position_size[i] = prev_pos
-        cash[i] = (cash[i - 1] if i > 0 else cfg.initial_capital) + mtm_pnl - funding_cost[i]
+        cash[i] = (cash[i - 1] if i > 0 else cfg.initial_capital) - funding_cost[i]
 
         # Decide actions for bar i — fills happen at bar i+1's close.
         # We process the *signals from the previous bar* now to keep the
@@ -169,6 +164,8 @@ def run_backtest(
 
         if action.startswith("open"):
             position_size[i] = side * size_btc
+            # `side` already encodes buy(+1) / sell(-1): a buy debits cash,
+            # a sell credits it.
             cash[i] -= side * size_btc * fill.fill_price
             open_trade = {
                 "entry_idx": int(i),
@@ -179,7 +176,9 @@ def run_backtest(
         else:  # close
             assert open_trade is not None, "close without open"
             position_size[i] = 0.0
-            cash[i] += side * size_btc * fill.fill_price
+            # Same formula as open — `side` is the closing direction:
+            # close_long has side=-1 (we sell, cash IN); close_short has side=+1 (cash OUT).
+            cash[i] -= side * size_btc * fill.fill_price
             entry_price = float(open_trade["entry_price"])
             trade_side = int(open_trade["side"])
             pnl_trade = (
@@ -198,8 +197,6 @@ def run_backtest(
                 }
             )
             open_trade = None
-
-        notional[i] = position_size[i] * cur_close
 
     # Equity at bar i = cash + position MTM at close.
     equity = cash + position_size * close

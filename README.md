@@ -123,10 +123,10 @@ btc-quant/
 ## Roadmap (étape par étape, validation à chaque palier)
 
 - [x] **Étape 1 — Bootstrap** : structure, pyproject, README, .env.example, pre-commit, pytest, settings + logging.
-- [ ] **Étape 2 — Data** : connecteur Bybit (REST + WS), download historique résilient, Parquet partitionné, DuckDB, qualité auto.
-- [ ] **Étape 3 — Features** : RSI/MACD/BB/ATR/EMAs, vol multi-fenêtres, GARCH(1,1), HMM régimes, ruptures, Kalman.
-- [ ] **Étape 4 — Backtest** : harness vectorbt avec spread, slippage, frais overnight, walk-forward + purge/embargo.
-- [ ] **Étape 5 — Stratégie baseline** : mean-reversion Bollinger filtré HMM, vol targeting, rapport HTML.
-- [ ] **Étape 6 — Live alertes** : boucle WS, scoring, alertes console + log (pas d'exécution).
+- [x] **Étape 2 — Data** : connecteur Bybit (REST polling), download historique résilient, Parquet partitionné, DuckDB, qualité auto (outliers/gaps/zero-vol).
+- [x] **Étape 3 — Features** : RSI/MACD/BB/ATR/EMAs, vol multi-fenêtres, GARCH(1,1) walk-forward, HMM 3-états (sortés bear/range/bull), ruptures PELT, Kalman local-linear-trend. **Test de causalité strict passé.**
+- [x] **Étape 4 — Backtest** : harness custom numpy (vectorbt en backup), spread/slippage/funding réalistes, walk-forward + purge/embargo, métriques complètes (Sharpe/Sortino/Calmar/MDD/PF/expectancy), rapport HTML plotly. **Test no-look-ahead strict passé.**
+- [x] **Étape 5 — Stratégie baseline** : mean-reversion Bollinger filtré HMM, sortie via mid-band / ATR×2 stop / timeout 4h, vol targeting (1% per trade), backtest sur 2 ans BTCUSDT M5.
+- [ ] **Étape 6 — Live alertes** : boucle de polling, scoring, alertes console + log (pas d'exécution).
 
 Aucune exécution automatique tant que plusieurs mois de stats live ne sont pas cohérents avec le backtest.

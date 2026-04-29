@@ -89,7 +89,10 @@ def download_history(
     if requested_start.tzinfo is None:
         requested_start = requested_start.tz_localize("UTC")
 
-    # Resume from disk if anything is already stored.
+    # Resume from disk if anything is already stored. NOTE: this only extends
+    # the upper bound — if `requested_start` predates the earliest stored bar,
+    # we DO NOT backfill the gap automatically. Delete the partition or call
+    # `store.read(...)` to get whatever is on disk.
     effective_start = requested_start
     if store is not None:
         latest = store.latest_timestamp(symbol, timeframe)
@@ -98,13 +101,28 @@ def download_history(
             resume_from = latest + interval
             if resume_from > effective_start:
                 logger.info(
-                    "Resuming {} {}: {} rows already on disk, last={}, fetching from {}",
+                    "Resuming {} {}: last stored={}, fetching from {}",
                     symbol,
                     timeframe,
-                    "?",
                     latest,
                     resume_from,
                 )
+                # Warn if the user expected a window that starts BEFORE what
+                # the store currently covers — those older bars won't be
+                # fetched by this call.
+                earliest_stored = store.read(symbol, timeframe).get("timestamp")
+                if (
+                    earliest_stored is not None
+                    and not earliest_stored.empty
+                    and requested_start < earliest_stored.iloc[0]
+                ):
+                    logger.warning(
+                        "Requested start {} is BEFORE earliest stored {}. "
+                        "Backward gap will NOT be filled — delete the partition "
+                        "to refetch from scratch.",
+                        requested_start,
+                        earliest_stored.iloc[0],
+                    )
                 effective_start = resume_from
 
     if effective_start >= end_ts:

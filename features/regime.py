@@ -8,6 +8,8 @@ Both are stateful and refit periodically. Causality is preserved by:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import warnings
 from typing import Any, cast
 
@@ -73,13 +75,19 @@ def _hmm_walk_forward(
 ) -> tuple[NDArrayI, NDArrayF]:
     """Refit a Gaussian HMM periodically; predict the latest state at each bar.
 
+    States are remapped after each fit so that label ``0`` is the lowest-mean-
+    return regime (bear-like) and label ``n_states - 1`` is the highest
+    (bull-like). Without this, the HMM's internal ordering is arbitrary and
+    can flip across refits — strategies that read the labels would behave
+    inconsistently. The mapping is recomputed at each fit.
+
     Returns (labels, probas), both length-N arrays.
 
-        labels[i] = argmax over states of P(state[i] | obs[:i+1], θ_last_fit)
-        probas[i] = max over states of P(state[i] | obs[:i+1], θ_last_fit)
+        labels[i] = canonical label (0=bear, 1=range, 2=bull) at bar i
+                    using model fit at last refit ≤ i
+        probas[i] = posterior probability of the chosen label
 
-    NaN observations are forward-filled before scoring (HMM can't accept
-    NaN), but the scoring only ever uses ``obs[:i+1]``, so still causal.
+    Causal: scoring uses only ``obs[:i+1]`` and the latest fit.
     """
     n = len(obs)
     labels = np.full(n, -1, dtype=np.int64)
@@ -89,6 +97,7 @@ def _hmm_walk_forward(
     first_finite = int(np.argmax(finite_mask)) if finite_mask.any() else n
 
     model: GaussianHMM | None = None
+    state_order: NDArrayI | None = None  # order[k] = model state for canonical label k
     last_fit_at = -1
 
     for i in range(n):
@@ -101,7 +110,12 @@ def _hmm_walk_forward(
             if len(sub) < min_obs:
                 continue
             try:
-                with warnings.catch_warnings():
+                # hmmlearn's ConvergenceMonitor prints to stdout regardless
+                # of `verbose=False`; muffle it to keep our logs clean.
+                with (
+                    warnings.catch_warnings(),
+                    contextlib.redirect_stdout(io.StringIO()),
+                ):
                     warnings.simplefilter("ignore")
                     new_model = GaussianHMM(
                         n_components=n_states,
@@ -111,12 +125,14 @@ def _hmm_walk_forward(
                     )
                     new_model.fit(sub)
                 model = new_model
+                # Sort states by mean log-return (column 0 of the obs matrix).
+                state_order = np.argsort(model.means_[:, 0]).astype(np.int64)
                 last_fit_at = i
             except Exception as exc:  # noqa: BLE001
                 logger.warning("HMM fit failed at bar {}: {}", i, exc)
                 continue
 
-        if model is None or not finite_mask[i]:
+        if model is None or state_order is None or not finite_mask[i]:
             continue
 
         # Score on the prefix and read the LAST posterior — strictly causal.
@@ -128,8 +144,10 @@ def _hmm_walk_forward(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 post = model.predict_proba(sub)
-            labels[i] = int(np.argmax(post[-1]))
-            probas[i] = float(np.max(post[-1]))
+            # Reorder columns to canonical [P(bear), P(range), P(bull), …].
+            canonical = post[-1, state_order]
+            labels[i] = int(np.argmax(canonical))
+            probas[i] = float(np.max(canonical))
         except Exception:  # noqa: BLE001
             continue
     return labels, probas
