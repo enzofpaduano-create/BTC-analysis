@@ -26,6 +26,7 @@ from data.storage import ParquetStore
 from data.stream import stream_klines
 from features import FeaturesConfig, compute_features
 from live.scoring import CompositeScore, score_latest_bar
+from live.tracker import AlertTracker
 
 # Score above this magnitude triggers an actionable alert (logged at WARNING).
 DEFAULT_ALERT_THRESHOLD = 0.3
@@ -110,6 +111,7 @@ class AlertsRunner:
         cfg: AlertConfig,
         features_cfg: FeaturesConfig,
         sinks: list[AlertSink] | None = None,
+        tracker: AlertTracker | None = None,
         client: BybitClient | None = None,
     ) -> None:
         if not strategies:
@@ -120,6 +122,7 @@ class AlertsRunner:
         self.sinks: list[AlertSink] = sinks or [default_console_sink]
         if cfg.alert_log_path is not None:
             self.sinks.append(jsonl_sink(cfg.alert_log_path))
+        self.tracker = tracker
         self.client = client
         self._buffer: pd.DataFrame | None = None  # rolling OHLCV window
 
@@ -162,6 +165,16 @@ class AlertsRunner:
                 sink(score)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Alert sink {} failed: {}", sink, exc)
+
+        # Tracker: feed the new bar to close any pending outcomes, then
+        # register this alert if it's actionable + above the alert threshold.
+        if self.tracker is not None:
+            try:
+                self.tracker.update_with_bar(self._buffer.iloc[-1])
+                if abs(score.score) >= self.cfg.alert_threshold:
+                    self.tracker.register(score)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Tracker error: {}", exc)
 
     def run(self, *, stop_event: Event | None = None) -> None:
         """Block on the stream loop until ``stop_event`` is set."""

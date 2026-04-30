@@ -25,7 +25,8 @@ from core.logging import setup_logging
 from core.settings import get_settings
 from features import FeaturesConfig
 from live.alerts import AlertConfig, AlertsRunner, default_console_sink
-from live.telegram import TelegramConfig, telegram_sink
+from live.telegram import TelegramConfig, telegram_outcome_sink, telegram_sink
+from live.tracker import AlertTracker
 from signals import MeanReversionBollingerHMM, TrendBreakoutADXHMM
 
 PARQUET_ROOT = Path("./data_store/parquet")
@@ -61,25 +62,39 @@ def main() -> None:
     ]
 
     sinks = [default_console_sink]
+    outcome_sinks = []
     if settings.telegram_bot_token and settings.telegram_chat_id:
-        sinks.append(
-            telegram_sink(
-                TelegramConfig(
-                    bot_token=settings.telegram_bot_token,
-                    chat_id=settings.telegram_chat_id,
-                    min_score_abs=settings.telegram_min_score_abs,
-                )
-            )
+        tg_cfg = TelegramConfig(
+            bot_token=settings.telegram_bot_token,
+            chat_id=settings.telegram_chat_id,
+            min_score_abs=settings.telegram_min_score_abs,
         )
+        sinks.append(telegram_sink(tg_cfg))
+        outcome_sinks.append(telegram_outcome_sink(tg_cfg))
         logger.info(
-            "Telegram sink active (chat_id={}, min_score_abs={})",
+            "Telegram sink active (chat_id={}, min_score_abs={}, tz={})",
             settings.telegram_chat_id,
             settings.telegram_min_score_abs,
+            tg_cfg.display_tz,
         )
     else:
         logger.info("Telegram sink disabled (set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID to enable)")
 
-    runner = AlertsRunner(strategies=strategies, cfg=cfg, features_cfg=feat_cfg, sinks=sinks)
+    # Outcome tracker — reports the result of each alert after ≤ 1h on M5.
+    tracker = AlertTracker(
+        state_path=Path("./data_store/pending_alerts.json"),
+        horizon_bars=12,  # 1 hour on M5
+        bar_minutes=cfg.bar_minutes,
+        outcome_sinks=outcome_sinks,
+    )
+
+    runner = AlertsRunner(
+        strategies=strategies,
+        cfg=cfg,
+        features_cfg=feat_cfg,
+        sinks=sinks,
+        tracker=tracker,
+    )
     with contextlib.suppress(KeyboardInterrupt):
         runner.run()
 

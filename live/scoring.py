@@ -24,6 +24,10 @@ from backtest.strategy import Strategy
 # Below this absolute score the consensus is too weak to call a direction.
 DIRECTION_THRESHOLD = 0.2
 
+# Default trade-plan multiples (× ATR), applied when the score is actionable.
+SL_ATR_MULT = 2.0
+TP_ATR_MULTS: tuple[float, float, float] = (1.0, 2.0, 3.0)
+
 
 @dataclass(frozen=True, slots=True)
 class StrategyScore:
@@ -45,6 +49,14 @@ class CompositeScore:
     regime_label: int
     regime_proba: float
     symbol: str = ""
+    # Trade plan — populated only when the score crosses the alert threshold.
+    # Values are absolute prices in the same unit as ``close``.
+    entry: float | None = None
+    sl: float | None = None
+    tp1: float | None = None
+    tp2: float | None = None
+    tp3: float | None = None
+    atr_at_entry: float | None = None
 
     def direction(self) -> int:
         if self.score > DIRECTION_THRESHOLD:
@@ -127,11 +139,40 @@ def score_latest_bar(
         else 0.0
     )
 
+    # Pre-compute trade plan if the score is actionable. Use ATR — direction
+    # of stop is opposite to the trade direction, TPs are with the trade.
+    score_value = float(composite)
+    entry = sl = tp1 = tp2 = tp3 = atr_val = None
+    if score_value > DIRECTION_THRESHOLD:
+        direction = 1
+    elif score_value < -DIRECTION_THRESHOLD:
+        direction = -1
+    else:
+        direction = 0
+    if (
+        direction != 0
+        and "atr" in features.columns
+        and pd.notna(last["atr"])
+        and pd.notna(last["close"])
+    ):
+        atr_val = float(last["atr"])
+        entry = float(last["close"])
+        sl = entry - direction * SL_ATR_MULT * atr_val
+        tp1 = entry + direction * TP_ATR_MULTS[0] * atr_val
+        tp2 = entry + direction * TP_ATR_MULTS[1] * atr_val
+        tp3 = entry + direction * TP_ATR_MULTS[2] * atr_val
+
     return CompositeScore(
         timestamp=pd.Timestamp(last["timestamp"]),
-        score=float(composite),
+        score=score_value,
         components=components,
         regime_label=regime_label,
         regime_proba=regime_proba,
         symbol=symbol,
+        entry=entry,
+        sl=sl,
+        tp1=tp1,
+        tp2=tp2,
+        tp3=tp3,
+        atr_at_entry=atr_val,
     )
