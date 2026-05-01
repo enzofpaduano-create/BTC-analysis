@@ -55,8 +55,10 @@ def default_console_sink(score: CompositeScore) -> None:
     """Print a compact one-liner to the console."""
     parts = " ".join(f"{c.strategy_name}:{c.direction:+d}@{c.size:.2f}" for c in score.components)
     symbol_str = f"{score.symbol} " if score.symbol else ""
+    # Use bar CLOSE time so log timestamps match when each alert is emitted.
+    close_ts = score.close_time()
     msg = (
-        f"[{score.timestamp:%Y-%m-%d %H:%M}] {symbol_str}{score.action()} "
+        f"[{close_ts:%Y-%m-%d %H:%M}] {symbol_str}{score.action()} "
         f"{score.rating()}/10 score={score.score:+.2f} "
         f"regime={score.regime_label}({score.regime_proba:.2f}) | {parts}"
     )
@@ -159,7 +161,12 @@ class AlertsRunner:
             return
 
         feat = compute_features(self._buffer, self.features_cfg)
-        score = score_latest_bar(features=feat, strategies=self.strategies, symbol=self.cfg.symbol)
+        score = score_latest_bar(
+            features=feat,
+            strategies=self.strategies,
+            symbol=self.cfg.symbol,
+            bar_minutes=self.cfg.bar_minutes,
+        )
         for sink in self.sinks:
             try:
                 sink(score)

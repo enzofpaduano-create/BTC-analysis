@@ -69,7 +69,9 @@ def format_alert_html(score: CompositeScore, *, display_tz: str = DEFAULT_DISPLA
     rating = score.rating()  # 1..10
     symbol = score.symbol or "—"
     regime_name = {0: "bear", 1: "range", 2: "bull"}.get(score.regime_label, "?")
-    local_ts = _localize(score.timestamp, display_tz)
+    # Display the bar CLOSE time (= when the alert actually fires) rather
+    # than the bar OPEN time, so the user's perceived delay is minimal.
+    local_ts = _localize(score.close_time(), display_tz)
     tz_short = local_ts.strftime("%Z") or display_tz.rsplit("/", maxsplit=1)[-1]
 
     components = "\n".join(
@@ -176,10 +178,18 @@ def format_outcome_html(outcome: TrackerOutcome) -> str:
         verdict = "1h elapsed, no TP/SL"
 
     sign_final = "+" if outcome.final_pct >= 0 else ""
+    # alert_id is the bar OPEN ISO timestamp; advance to the close (= when
+    # the alert was actually emitted) for display, in the configured TZ.
+    alert_open = pd.Timestamp(outcome.alert_id)
+    if alert_open.tzinfo is None:
+        alert_open = alert_open.tz_localize("UTC")
+    alert_close_local = _localize(
+        alert_open + pd.Timedelta(minutes=outcome.bar_minutes), DEFAULT_DISPLAY_TZ
+    )
     return (
         f"{emoji} <b>{side} {outcome.symbol}</b> result\n"
-        f"alert id: <code>{outcome.alert_id[11:16]}</code> "
-        f"({outcome.duration_minutes} min)\n"
+        f"alert at <code>{alert_close_local:%H:%M}</code> "
+        f"({outcome.duration_minutes} min ago)\n"
         f"verdict: <b>{verdict}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"entry  <code>{outcome.entry:,.2f}</code>\n"

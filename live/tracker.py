@@ -68,6 +68,7 @@ class TrackerOutcome:
     sl_hit: bool
     reason: str  # "sl_hit" | "tp3_hit" | "horizon_elapsed"
     duration_minutes: int
+    bar_minutes: int = 5  # bar duration — used to compute close-time displays
 
 
 OutcomeSink = Callable[[TrackerOutcome], None]
@@ -254,4 +255,5 @@ class AlertTracker:
             sl_hit=sl_hit,
             reason=reason,
             duration_minutes=duration,
+            bar_minutes=self.bar_minutes,
         )

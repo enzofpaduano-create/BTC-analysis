@@ -43,12 +43,13 @@ class StrategyScore:
 class CompositeScore:
     """Aggregate score across all active strategies at the latest bar."""
 
-    timestamp: pd.Timestamp
+    timestamp: pd.Timestamp  # bar OPEN time (start of the candle)
     score: float  # [-1, 1]
     components: list[StrategyScore]
     regime_label: int
     regime_proba: float
     symbol: str = ""
+    bar_minutes: int = 5  # candle duration — used to compute close time for display
     # Trade plan — populated only when the score crosses the alert threshold.
     # Values are absolute prices in the same unit as ``close``.
     entry: float | None = None
@@ -57,6 +58,10 @@ class CompositeScore:
     tp2: float | None = None
     tp3: float | None = None
     atr_at_entry: float | None = None
+
+    def close_time(self) -> pd.Timestamp:
+        """Return the time at which this bar closed (= when the alert fires)."""
+        return self.timestamp + pd.Timedelta(minutes=self.bar_minutes)
 
     def direction(self) -> int:
         if self.score > DIRECTION_THRESHOLD:
@@ -89,6 +94,7 @@ def score_latest_bar(
     features: pd.DataFrame,
     strategies: list[tuple[Strategy, float]],
     symbol: str = "",
+    bar_minutes: int = 5,
 ) -> CompositeScore:
     """Compute the composite score for the last bar of ``features``.
 
@@ -169,6 +175,7 @@ def score_latest_bar(
         regime_label=regime_label,
         regime_proba=regime_proba,
         symbol=symbol,
+        bar_minutes=bar_minutes,
         entry=entry,
         sl=sl,
         tp1=tp1,
