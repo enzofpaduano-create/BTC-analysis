@@ -45,6 +45,13 @@ def main() -> None:
         alert_threshold=0.3,
         alert_log_path=ALERTS_LOG,
         parquet_root=PARQUET_ROOT,
+        # "Scenario J" — derived from a 54-alert live audit over 11 days.
+        # On M5 the ATR is often very small (median 0.13 %) so the original
+        # SL/TP geometry was getting wicked. Combined with skipping SELL
+        # (which loses badly in a slow uptrend) this flips the system net
+        # PnL from -2.85 % to +0.88 % over the same period.
+        skip_short=True,
+        min_atr_pct=0.0015,  # require ATR ≥ 0.15 % of price
     )
 
     feat_cfg = FeaturesConfig(bar_minutes=5)
@@ -80,10 +87,12 @@ def main() -> None:
     else:
         logger.info("Telegram sink disabled (set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID to enable)")
 
-    # Outcome tracker — reports the result of each alert after ≤ 1h on M5.
+    # Outcome tracker — reports the result of each alert after ≤ 2h on M5
+    # (wider after the audit: 1h truncated many TP3 outcomes that completed
+    # in the 60-120 min window).
     tracker = AlertTracker(
         state_path=Path("./data_store/pending_alerts.json"),
-        horizon_bars=12,  # 1 hour on M5
+        horizon_bars=24,  # 2 hours on M5
         bar_minutes=cfg.bar_minutes,
         outcome_sinks=outcome_sinks,
     )

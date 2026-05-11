@@ -164,3 +164,52 @@ def test_alerts_runner_warmup_guard_skips_when_buffer_too_short() -> None:
     bar.loc[0, "timestamp"] = pd.Timestamp("2024-02-01", tz="UTC")
     runner._on_bar(bar)
     assert received == []
+
+
+# -- is_actionable filters -------------------------------------------------
+
+
+def _make_score(
+    *, score: float = 0.5, direction: int = 1, entry: float | None = 100.0, atr: float | None = 1.0
+) -> CompositeScore:
+    return CompositeScore(
+        timestamp=pd.Timestamp("2024-01-01", tz="UTC"),
+        score=score if direction > 0 else -abs(score),
+        components=[],
+        regime_label=2,
+        regime_proba=0.9,
+        symbol="BTCUSDT",
+        bar_minutes=5,
+        entry=entry,
+        atr_at_entry=atr,
+    )
+
+
+def test_is_actionable_threshold() -> None:
+    cfg = AlertConfig(alert_threshold=0.3)
+    assert cfg.is_actionable(_make_score(score=0.5))
+    assert not cfg.is_actionable(_make_score(score=0.2))
+
+
+def test_is_actionable_skip_short() -> None:
+    cfg = AlertConfig(alert_threshold=0.3, skip_short=True)
+    assert cfg.is_actionable(_make_score(score=0.5, direction=1))
+    assert not cfg.is_actionable(_make_score(score=0.5, direction=-1))
+
+
+def test_is_actionable_min_atr_pct() -> None:
+    cfg = AlertConfig(alert_threshold=0.3, min_atr_pct=0.0015)
+    # ATR 1 on entry 100 = 1 % → passes
+    assert cfg.is_actionable(_make_score(score=0.5, entry=100.0, atr=1.0))
+    # ATR 0.1 on entry 100 = 0.1 % → fails (< 0.15 %)
+    assert not cfg.is_actionable(_make_score(score=0.5, entry=100.0, atr=0.1))
+
+
+def test_is_actionable_skip_short_and_atr_combined() -> None:
+    cfg = AlertConfig(alert_threshold=0.3, skip_short=True, min_atr_pct=0.0015)
+    # BUY with healthy ATR passes
+    assert cfg.is_actionable(_make_score(score=0.5, direction=1, atr=1.0))
+    # SHORT with healthy ATR fails (skip_short)
+    assert not cfg.is_actionable(_make_score(score=0.5, direction=-1, atr=1.0))
+    # BUY with tight ATR fails
+    assert not cfg.is_actionable(_make_score(score=0.5, direction=1, atr=0.1))

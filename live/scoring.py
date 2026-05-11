@@ -25,8 +25,10 @@ from backtest.strategy import Strategy
 DIRECTION_THRESHOLD = 0.2
 
 # Default trade-plan multiples (× ATR), applied when the score is actionable.
-SL_ATR_MULT = 2.0
-TP_ATR_MULTS: tuple[float, float, float] = (1.0, 2.0, 3.0)
+# Tuned wider after audit on 54 live alerts (M5, 11 days) — narrower stops
+# were getting hit by wicks, narrower TPs left money on the table.
+SL_ATR_MULT = 3.0
+TP_ATR_MULTS: tuple[float, float, float] = (2.0, 4.0, 6.0)
 
 
 @dataclass(frozen=True, slots=True)

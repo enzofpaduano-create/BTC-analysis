@@ -49,6 +49,29 @@ class AlertConfig:
     alert_log_path: Path | None = None  # JSON-lines file
     poll_interval_s: float | None = None
     parquet_root: Path | None = None  # if provided, fresh bars are persisted
+    # Quality filters — applied AFTER scoring, BEFORE dispatching to sinks
+    # and the tracker. Console keeps logging filtered alerts at DEBUG level
+    # so the runner stays observable.
+    skip_short: bool = False  # drop SELL signals entirely
+    min_atr_pct: float = 0.0  # drop alerts where ATR/close < this fraction
+
+    def is_actionable(self, score: CompositeScore) -> bool:
+        """Whether ``score`` should fire Telegram + tracker.
+
+        Console always sees the score for telemetry; this method controls
+        the *user-facing* dispatching only.
+        """
+        if abs(score.score) < self.alert_threshold:
+            return False
+        if self.skip_short and score.direction() < 0:
+            return False
+        return not (
+            self.min_atr_pct > 0
+            and score.entry is not None
+            and score.atr_at_entry is not None
+            and score.entry > 0
+            and (score.atr_at_entry / score.entry) < self.min_atr_pct
+        )
 
 
 def default_console_sink(score: CompositeScore) -> None:
@@ -167,18 +190,41 @@ class AlertsRunner:
             symbol=self.cfg.symbol,
             bar_minutes=self.cfg.bar_minutes,
         )
-        for sink in self.sinks:
+
+        # Quality filters: when an alert is generated but filtered, the
+        # console sink (first in the list) still logs it for observability,
+        # while sinks further down (telegram, JSONL) only see the actionable
+        # ones. The tracker also only registers actionable alerts.
+        actionable = self.cfg.is_actionable(score)
+        if not actionable and abs(score.score) >= self.cfg.alert_threshold:
+            # Score crossed the alert threshold but got filtered — log why.
+            reason = (
+                "skip_short" if (self.cfg.skip_short and score.direction() < 0) else "atr_too_small"
+            )
+            logger.info(
+                "Filtered alert: {} {} score={:+.2f} ATR%={:.3f}% reason={}",
+                score.symbol,
+                score.action(),
+                score.score,
+                (score.atr_at_entry / score.entry * 100)
+                if (score.entry and score.atr_at_entry)
+                else float("nan"),
+                reason,
+            )
+
+        sinks_to_call = self.sinks if actionable else self.sinks[:1]  # console only
+        for sink in sinks_to_call:
             try:
                 sink(score)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Alert sink {} failed: {}", sink, exc)
 
         # Tracker: feed the new bar to close any pending outcomes, then
-        # register this alert if it's actionable + above the alert threshold.
+        # register this alert if it passed the filters.
         if self.tracker is not None:
             try:
                 self.tracker.update_with_bar(self._buffer.iloc[-1])
-                if abs(score.score) >= self.cfg.alert_threshold:
+                if actionable:
                     self.tracker.register(score)
             except Exception as exc:  # noqa: BLE001
                 logger.error("Tracker error: {}", exc)
